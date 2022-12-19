@@ -1,5 +1,9 @@
 ;;; $DOOMDIR/config.el -*- lexical-binding: t; -*-
 
+(setq doom-theme 'doom-gruvbox
+      doom-font (font-spec :family "PragmataPro" :size 16))
+(setq-default line-spacing 0.2)
+
 (defun set-exec-path-from-shell-PATH ()
   "Set up Emacs' `exec-path' and PATH environment variable to match
 that used by the user's shell.
@@ -19,43 +23,9 @@ apps are not started from a shell."
 (setq user-full-name "McCoy R. Becker"
       user-mail-address "mccoyb@mit.edu")
 
-(setq default-frame-alist
-      (append (list
-               '(min-height . 1)
-               '(height     . 45)
-               '(min-width  . 1)
-               '(width      . 81)
-               '(vertical-scroll-bars . nil)
-               '(internal-border-width . 24)
-               '(left-fringe    . 1)
-               '(right-fringe   . 1)
-               '(tool-bar-lines . 0)
-               '(menu-bar-lines . 0))))
-
-(setq window-divider-default-right-width 24)
-(setq window-divider-default-places 'right-only)
-(window-divider-mode 1)
-
 (global-visual-line-mode t)
 
 (setq display-line-numbers-type 'relative)
-(setq inhibit-startup-screen t)
-(setq inhibit-startup-message t)
-(setq inhibit-startup-echo-area-message t)
-(setq initial-scratch-message nil)
-(setq initial-buffer-choice nil)
-(setq frame-title-format nil)
-(setq use-file-dialog nil)
-(setq use-dialog-box nil)
-(setq pop-up-windows nil)
-(setq indicate-empty-lines nil)
-(setq cursor-in-non-selected-windows nil)
-(setq initial-major-mode 'text-mode)
-(setq default-major-mode 'text-mode)
-(setq font-lock-maximum-decoration nil)
-(setq auto-fill-mode nil)
-(setq fill-column 80)
-(setq window-min-height 1)
 
 (use-package citar
   :bind (("C-c b" . citar-insert-citation)
@@ -109,11 +79,6 @@ apps are not started from a shell."
 
 (setq org-ascii-caption-above t)
 
-;; krita in org.
-(use-package! org-krita
-  :config
-  (add-hook 'org-mode-hook 'org-krita-mode))
-
 ;; ink in org.
 (use-package! ink)
 
@@ -135,6 +100,3 @@ apps are not started from a shell."
 ;; Fix some LSP ui issue.
 (after! lsp-ui
   (setq lsp-ui-sideline-enable nil))
-
-;; ob-mermaid
-(setq ob-mermaid-cli-path "/usr/local/bin/mmdc")
