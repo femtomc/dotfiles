@@ -74,7 +74,7 @@
        sh                ; she sells {ba,z,fi}sh shells on the C xor
 
        :email
-       (mu4e +org +gmail)
+       ; (mu4e +org +gmail)
 
        :app
        (rss +org)
