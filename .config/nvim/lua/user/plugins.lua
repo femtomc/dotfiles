@@ -87,10 +87,10 @@ return packer.startup(function(use)
   use {
     "sdiehl/vim-ormolu"
   }
-
+  
   -- Quarto LSP
   use { 'quarto-dev/quarto-nvim',
-    requires = {'neovim/nvim-lspconfig'}
+    requires = {'neovim/nvim-lspconfig', 'jmbuhr/otter.nvim'}
   }
 
 	-- Git

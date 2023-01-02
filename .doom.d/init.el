@@ -60,16 +60,13 @@
        :lang
        yaml
        (cc +lsp)         ; C > C++ == 1
-       coq               ; proofs-as-programs
        emacs-lisp        ; drown in parentheses
-       fstar             ; (dependent types)
        (haskell +lsp)    ; a language that's lazier than I am
+       (agda +local)
        json              ; At least it ain't XML
-       julia             ; a better, faster MATLAB
        latex             ; writing papers in Emacs has never been so fun
        markdown          ; writing docs for people to ignore
        (org +roam2)      ; organize your plain life in plain text
-       (racket +lsp +xp)
        (rust +lsp)              ; Fe2O3.unwrap().unwrap().unwrap().unwrap()
        sh                ; she sells {ba,z,fi}sh shells on the C xor
 
