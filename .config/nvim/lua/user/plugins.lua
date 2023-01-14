@@ -57,6 +57,20 @@ return packer.startup(function(use)
 	use({ "goolord/alpha-nvim", commit = "0bb6fc0646bcd1cdb4639737a1cee8d6e08bcc31" })
 	use({ "folke/which-key.nvim" })
 
+	-- Barbecue.
+	use({
+		"utilyre/barbecue.nvim",
+		requires = {
+			"neovim/nvim-lspconfig",
+			"SmiteshP/nvim-navic",
+			"nvim-tree/nvim-web-devicons", -- optional dependency
+		},
+		after = "nvim-web-devicons", -- keep this if you're using NvChad
+		config = function()
+			require("barbecue").setup()
+		end,
+	})
+
 	-- Colorschemes
 	use({ "ellisonleao/gruvbox.nvim" })
 	use({ "nyoom-engineering/oxocarbon.nvim" })
