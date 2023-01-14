@@ -126,6 +126,7 @@ return packer.startup(function(use)
 			require("telescope").setup({
 				extensions = {
 					undo = {
+						use_delta = false,
 						side_by_side = true,
 						layout_strategy = "vertical",
 						layout_config = {
