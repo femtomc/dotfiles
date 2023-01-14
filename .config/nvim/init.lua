@@ -19,6 +19,3 @@ require("user.indentline")
 require("user.alpha")
 require("user.whichkey")
 require("user.autocommands")
-
--- NOTE: Automatically turn twilight and zenmode on.
-require("twilight").toggle()

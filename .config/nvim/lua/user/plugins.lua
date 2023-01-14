@@ -58,7 +58,7 @@ return packer.startup(function(use)
 	use({ "folke/which-key.nvim" })
 
 	-- Colorschemes
-	use({ "morhetz/gruvbox" })
+	use({ "ellisonleao/gruvbox.nvim" })
 	use({ "nyoom-engineering/oxocarbon.nvim" })
 
 	-- Cmp
@@ -87,7 +87,17 @@ return packer.startup(function(use)
 		"folke/trouble.nvim",
 		requires = "kyazdani42/nvim-web-devicons",
 		config = function()
-			require("trouble").setup({})
+			require("trouble").setup({
+				mode = "document_diagnostics",
+			})
+		end,
+	})
+
+	-- Symbols.
+	use({
+		"simrat39/symbols-outline.nvim",
+		config = function()
+			require("symbols-outline").setup()
 		end,
 	})
 
@@ -103,6 +113,7 @@ return packer.startup(function(use)
 	-- Haskell formatting
 	use({
 		"sdiehl/vim-ormolu",
+		ft = { "hs" },
 	})
 
 	-- Lean support
@@ -136,34 +147,6 @@ return packer.startup(function(use)
 		requires = "nvim-lua/plenary.nvim",
 		config = function()
 			require("todo-comments").setup({})
-		end,
-	})
-
-	use({
-		"folke/twilight.nvim",
-		config = function()
-			require("twilight").setup({
-				{
-					dimming = {
-						alpha = 0.25, -- amount of dimming
-						-- we try to get the foreground from the highlight groups or fallback color
-						color = { "Normal", "#ffffff" },
-						term_bg = "#000000", -- if guibg=NONE, this will be used to calculate text color
-						inactive = false, -- when true, other windows will be fully dimmed (unless they contain the same buffer)
-					},
-				},
-			})
-		end,
-	})
-
-	use({
-		"folke/zen-mode.nvim",
-		config = function()
-			require("zen-mode").setup({
-				-- your configuration comes here
-				-- or leave it empty to use the default settings
-				-- refer to the configuration section below
-			})
 		end,
 	})
 

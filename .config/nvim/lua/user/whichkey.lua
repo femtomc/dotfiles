@@ -170,26 +170,23 @@ local mappings = {
 		C = { "<cmd>Telescope commands<cr>", "Commands" },
 	},
 
-	t = {
+	T = {
 		name = "Terminal",
-		n = { "<cmd>lua _NODE_TOGGLE()<cr>", "Node" },
-		u = { "<cmd>lua _NCDU_TOGGLE()<cr>", "NCDU" },
-		t = { "<cmd>lua _HTOP_TOGGLE()<cr>", "Htop" },
+		n = { "<cmd>lua _NCDU_TOGGLE()<cr>", "NCDU" },
+		h = { "<cmd>lua _HTOP_TOGGLE()<cr>", "Htop" },
 		p = { "<cmd>lua _PYTHON_TOGGLE()<cr>", "Python" },
-		f = { "<cmd>ToggleTerm direction=float<cr>", "Float" },
-		h = { "<cmd>ToggleTerm size=10 direction=horizontal<cr>", "Horizontal" },
-		v = { "<cmd>ToggleTerm size=80 direction=vertical<cr>", "Vertical" },
+		t = { "<cmd>ToggleTerm direction=tab<cr>", "Float" },
 	},
 
-	T = {
+	t = {
 		name = "Trouble",
 		t = { "<cmd>TroubleToggle<cr>", "toggle" },
 	},
 
 	m = {
 		name = "MiniMap",
-		o = { "<cmd>lua mini.map.open<cr>, Open" },
-		c = { "<cmd>lua mini.map.close<cr>", "Close" },
+		o = { "<cmd>lua MiniMap.open()<cr>", "Open" },
+		c = { "<cmd>lua MiniMap.close()<cr>", "Close" },
 	},
 }
 
