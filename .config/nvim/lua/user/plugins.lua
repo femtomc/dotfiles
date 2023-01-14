@@ -116,7 +116,27 @@ return packer.startup(function(use)
 	})
 
 	-- Telescope
-	use({ "nvim-telescope/telescope.nvim", commit = "76ea9a898d3307244dce3573392dcf2cc38f340f" })
+	use({
+		"nvim-telescope/telescope.nvim",
+		requires = {
+			"nvim-lua/plenary.nvim",
+			"debugloop/telescope-undo.nvim",
+		},
+		config = function()
+			require("telescope").setup({
+				extensions = {
+					undo = {
+						side_by_side = true,
+						layout_strategy = "vertical",
+						layout_config = {
+							preview_height = 0.8,
+						},
+					},
+				},
+			})
+			require("telescope").load_extension("undo")
+		end,
+	})
 
 	-- Treesitter
 	use({ "nvim-treesitter/nvim-treesitter", run = ":TSUpdate" })
