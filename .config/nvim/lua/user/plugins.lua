@@ -150,11 +150,10 @@ return packer.startup(function(use)
 		end,
 	})
 
+	-- nvim-navic
 	use({
-		"andymass/vim-matchup",
-		setup = function()
-			vim.g.matchup_matchparen_offscreen = { method = "popup" }
-		end,
+		"SmiteshP/nvim-navic",
+		requires = "neovim/nvim-lspconfig",
 	})
 
 	-- Git
@@ -178,6 +177,31 @@ return packer.startup(function(use)
 			require("mini.map").setup()
 		end,
 	})
+
+	-- SSR.
+	use({
+		"cshuaimin/ssr.nvim",
+		module = "ssr",
+		-- Calling setup is optional.
+		config = function()
+			require("ssr").setup({
+				min_width = 50,
+				min_height = 5,
+				max_width = 120,
+				max_height = 25,
+				keymaps = {
+					close = "q",
+					next_match = "n",
+					prev_match = "N",
+					replace_confirm = "<cr>",
+					replace_all = "<leader><cr>",
+				},
+			})
+		end,
+	})
+
+	-- Diff view.
+	use({ "sindrets/diffview.nvim", requires = "nvim-lua/plenary.nvim" })
 
 	-- Automatically set up your configuration after cloning packer.nvim
 	-- Put this at the end after all plugins
