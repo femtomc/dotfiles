@@ -189,6 +189,11 @@ local mappings = {
 		o = { "<cmd>lua MiniMap.open()<cr>", "Open" },
 		c = { "<cmd>lua MiniMap.close()<cr>", "Close" },
 	},
+
+	n = {
+		name = "Neogen",
+		f = { "<cmd>lua require('neogen').generate()<cr>", "Generate" },
+	},
 }
 
 local visual_opts = {

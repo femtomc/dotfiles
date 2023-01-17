@@ -73,7 +73,6 @@ return packer.startup(function(use)
 
 	-- Colorschemes
 	use({ "ellisonleao/gruvbox.nvim" })
-	use({ "nyoom-engineering/oxocarbon.nvim" })
 
 	-- Cmp
 	use({ "hrsh7th/nvim-cmp", commit = "b0dff0ec4f2748626aae13f011d1a47071fe9abc" })
@@ -199,6 +198,33 @@ return packer.startup(function(use)
 		},
 		config = function()
 			require("octo").setup()
+		end,
+	})
+
+	-- Neogen.
+	use({
+		"danymat/neogen",
+		config = function()
+			require("neogen").setup({
+				enabled = true,
+				language = {
+					python = {
+						template = {
+							annotation_conventation = "reST",
+						},
+					},
+				},
+			})
+		end,
+		requires = "nvim-treesitter/nvim-treesitter",
+		tag = "*",
+	})
+
+	-- Goto preview
+	use({
+		"rmagatti/goto-preview",
+		config = function()
+			require("goto-preview").setup({})
 		end,
 	})
 
