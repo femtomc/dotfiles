@@ -85,8 +85,34 @@ return packer.startup(function(use)
 	-- LaTeX symbols
 	use("https://gitlab.com/ExpandingMan/compe-latex")
 
+	-- LaTeX
+	use({
+		"lervag/vimtex",
+		ft = { "tex" },
+	})
+
 	-- Snippets
-	use({ "L3MON4D3/LuaSnip", commit = "8f8d493e7836f2697df878ef9c128337cbf2bb84" })
+	use({
+		"L3MON4D3/LuaSnip",
+		commit = "8f8d493e7836f2697df878ef9c128337cbf2bb84",
+		config = function()
+			require("luasnip").config.set_config({
+				enable_autosnippets = true,
+				store_selection_keys = "<Tab>",
+			})
+		end,
+	})
+
+	use({
+		"iurimateus/luasnip-latex-snippets.nvim",
+		-- replace "lervag/vimtex" with "nvim-treesitter/nvim-treesitter" if you're
+		-- using treesitter.
+		requires = { "L3MON4D3/LuaSnip", "lervag/vimtex" },
+		config = function()
+			require("luasnip-latex-snippets").setup({ use_treesitter = true })
+		end,
+		ft = "tex",
+	})
 
 	-- LSP
 	use({ "neovim/nvim-lspconfig", commit = "f11fdff7e8b5b415e5ef1837bdcdd37ea6764dda" }) -- enable LSP
@@ -210,7 +236,7 @@ return packer.startup(function(use)
 				language = {
 					python = {
 						template = {
-							annotation_conventation = "reST",
+							annotation_conventation = "numpydoc",
 						},
 					},
 				},

@@ -13,6 +13,7 @@ configs.setup({
 		"python",
 		"typescript",
 		"tsx",
+    "latex",
 		"css",
 		"rust",
 		"java",
