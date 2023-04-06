@@ -43,14 +43,14 @@ alias ranger='ranger --choosedir=$HOME/.rangerdir; LASTDIR=`cat $HOME/.rangerdir
 
 # >>> conda initialize >>>
 # !! Contents within this block are managed by 'conda init' !!
-__conda_setup="$('/home/mccoy/miniconda3/bin/conda' 'shell.zsh' 'hook' 2> /dev/null)"
+__conda_setup="$('/Users/mccoybecker/miniconda3/bin/conda' 'shell.zsh' 'hook' 2> /dev/null)"
 if [ $? -eq 0 ]; then
     eval "$__conda_setup"
 else
-    if [ -f "/home/mccoy/miniconda3/etc/profile.d/conda.sh" ]; then
-        . "/home/mccoy/miniconda3/etc/profile.d/conda.sh"
+    if [ -f "/Users/mccoybecker/miniconda3/etc/profile.d/conda.sh" ]; then
+        . "/Users/mccoybecker/miniconda3/etc/profile.d/conda.sh"
     else
-        export PATH="/home/mccoy/miniconda3/bin:$PATH"
+        export PATH="/Users/mccoybecker/miniconda3/bin:$PATH"
     fi
 fi
 unset __conda_setup
@@ -68,7 +68,7 @@ export NVM_DIR="$HOME/.nvm"
 
 # !! Contents within this block are managed by juliaup !!
 
-path=('/home/mccoy/.juliaup/bin' $path)
+path=('/home/mccoybecker/.juliaup/bin' $path)
 export PATH
 
 # <<< juliaup initialize <<<

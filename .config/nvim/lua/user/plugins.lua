@@ -287,6 +287,9 @@ return packer.startup(function(use)
 	-- Diff view.
 	use({ "sindrets/diffview.nvim", requires = "nvim-lua/plenary.nvim" })
 
+	-- GhostText.
+	use({ "subnut/nvim-ghost.nvim" })
+
 	-- Automatically set up your configuration after cloning packer.nvim
 	-- Put this at the end after all plugins
 	if PACKER_BOOTSTRAP then
