@@ -151,7 +151,7 @@ return packer.startup(function(use)
 			require("telescope").setup({
 				extensions = {
 					undo = {
-						use_delta = false,
+						use_delta = true,
 						side_by_side = true,
 						layout_strategy = "vertical",
 						layout_config = {
@@ -287,8 +287,8 @@ return packer.startup(function(use)
 	-- Diff view.
 	use({ "sindrets/diffview.nvim", requires = "nvim-lua/plenary.nvim" })
 
-	-- GhostText.
-	use({ "subnut/nvim-ghost.nvim" })
+  -- Copilot.
+  use({ "github/copilot.vim" })
 
 	-- Automatically set up your configuration after cloning packer.nvim
 	-- Put this at the end after all plugins
