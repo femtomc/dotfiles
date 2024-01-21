@@ -72,3 +72,6 @@ path=('/home/mccoybecker/.juliaup/bin' $path)
 export PATH
 
 # <<< juliaup initialize <<<
+
+# opam configuration
+[[ ! -r /Users/mccoybecker/.opam/opam-init/init.zsh ]] || source /Users/mccoybecker/.opam/opam-init/init.zsh  > /dev/null 2> /dev/null
