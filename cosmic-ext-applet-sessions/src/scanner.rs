@@ -561,6 +561,19 @@ fn truncate(s: &str, max: usize) -> String {
     }
 }
 
+// Public wrappers for app.rs to use for window matching.
+pub fn proc_bin_name_pub(pid: u32) -> Option<String> {
+    proc_bin_name(pid)
+}
+
+pub fn proc_ppid_pub(pid: u32) -> Option<u32> {
+    proc_ppid(pid)
+}
+
+pub fn proc_cwd_str(pid: u32) -> Option<String> {
+    proc_cwd_raw(pid)
+}
+
 pub fn format_duration(d: &Duration) -> String {
     let secs = d.as_secs();
     if secs < 60 {

@@ -1,4 +1,7 @@
 use crate::scanner::{self, SessionInfo, SessionKind};
+use crate::toplevel::{self, ToplevelAction, ToplevelEvent};
+use cctk::wayland_client::Proxy;
+use cctk::wayland_protocols::ext::foreign_toplevel_list::v1::client::ext_foreign_toplevel_handle_v1::ExtForeignToplevelHandleV1;
 use cosmic::iced::window::Id;
 use cosmic::iced::{Alignment, Length, Limits, Subscription};
 use cosmic::iced_winit::commands::popup::{destroy_popup, get_popup};
@@ -14,6 +17,8 @@ pub struct Sessions {
     core: cosmic::Core,
     popup: Option<Id>,
     sessions: Vec<SessionInfo>,
+    /// Channel to send activation commands to the Wayland thread.
+    toplevel_tx: Option<sctk::reexports::calloop::channel::Sender<ToplevelAction>>,
 }
 
 impl Default for Sessions {
@@ -22,6 +27,7 @@ impl Default for Sessions {
             core: cosmic::Core::default(),
             popup: None,
             sessions: Vec::new(),
+            toplevel_tx: None,
         }
     }
 }
@@ -33,6 +39,21 @@ pub enum Message {
     Refresh(Vec<SessionInfo>),
     Launch(SessionKind),
     Kill(u32),
+    /// Focus the Ghostty window associated with this session (by pid).
+    Focus(Option<u32>),
+    /// Toplevel window list update from Wayland thread.
+    ToplevelUpdate(Vec<ToplevelEventMsg>),
+}
+
+/// Serializable wrapper since ToplevelInfo isn't Clone-friendly for iced messages.
+#[derive(Debug, Clone)]
+pub enum ToplevelEventMsg {
+    Update {
+        app_id: String,
+        title: String,
+        proto_id: u32,
+    },
+    Remove(u32),
 }
 
 fn sessions_by_kind(sessions: &[SessionInfo], kind: SessionKind) -> Vec<&SessionInfo> {
@@ -113,7 +134,7 @@ impl cosmic::Application for Sessions {
                     .on_press(Message::Launch(kind)),
             ));
 
-            // Session rows.
+            // Session rows — clicking the row focuses the window.
             for session in kind_sessions {
                 content = content.add(session_row(session));
             }
@@ -122,10 +143,11 @@ impl cosmic::Application for Sessions {
         self.core.applet.popup_container(content).into()
     }
 
-    // ── Subscription: poll every 3s ──────────────────────────────────
+    // ── Subscriptions ────────────────────────────────────────────────
 
     fn subscription(&self) -> Subscription<Self::Message> {
-        Subscription::run(|| {
+        // 1. Process scanner (poll every 3s).
+        let scanner_sub = Subscription::run(|| {
             cosmic::iced::stream::channel(
                 4,
                 move |mut channel: cosmic::iced::futures::channel::mpsc::Sender<Message>| async move {
@@ -137,7 +159,65 @@ impl cosmic::Application for Sessions {
                     }
                 },
             )
-        })
+        });
+
+        // 2. Toplevel window watcher.
+        let toplevel_sub = Subscription::run(|| {
+            cosmic::iced::stream::channel(
+                8,
+                move |mut channel: cosmic::iced::futures::channel::mpsc::Sender<Message>| async move {
+                    use cosmic::iced::futures::SinkExt;
+                    use futures::StreamExt;
+
+                    let Some((mut event_rx, action_tx)) = toplevel::spawn() else {
+                        // Can't connect to Wayland — just hang forever.
+                        futures::future::pending::<()>().await;
+                        unreachable!()
+                    };
+
+                    // Send the action_tx as part of the first message so the app
+                    // can store it. We smuggle it via a dummy ToplevelUpdate.
+                    // Actually, we can't send the Sender through iced messages easily.
+                    // Instead, we'll use a static. (This is what cosmic-workspaces does.)
+                    TOPLEVEL_TX.lock().unwrap().replace(action_tx);
+
+                    while let Some(events) = event_rx.next().await {
+                        let mut msgs = Vec::new();
+                        // Update handle cache and build messages.
+                        {
+                            let mut hcache = HANDLE_CACHE.lock().unwrap();
+                            for e in events {
+                                match e {
+                                    ToplevelEvent::Update(info) => {
+                                        let proto_id = info.foreign_toplevel.id().protocol_id();
+                                        let handle = info.foreign_toplevel.clone();
+                                        // Upsert handle cache.
+                                        if let Some(entry) = hcache.iter_mut().find(|(id, _)| *id == proto_id) {
+                                            entry.1 = handle;
+                                        } else {
+                                            hcache.push((proto_id, handle));
+                                        }
+                                        msgs.push(ToplevelEventMsg::Update {
+                                            app_id: info.app_id.clone(),
+                                            title: info.title.clone(),
+                                            proto_id,
+                                        });
+                                    }
+                                    ToplevelEvent::Remove(handle) => {
+                                        let proto_id = handle.id().protocol_id();
+                                        hcache.retain(|(id, _)| *id != proto_id);
+                                        msgs.push(ToplevelEventMsg::Remove(proto_id));
+                                    }
+                                }
+                            }
+                        }
+                        _ = channel.send(Message::ToplevelUpdate(msgs)).await;
+                    }
+                },
+            )
+        });
+
+        Subscription::batch(vec![scanner_sub, toplevel_sub])
     }
 
     // ── Update ───────────────────────────────────────────────────────
@@ -146,6 +226,26 @@ impl cosmic::Application for Sessions {
         match message {
             Message::Refresh(sessions) => {
                 self.sessions = sessions;
+                // Pick up the toplevel_tx if the background thread set it.
+                if self.toplevel_tx.is_none() {
+                    if let Ok(mut guard) = TOPLEVEL_TX.lock() {
+                        self.toplevel_tx = guard.take();
+                    }
+                }
+            }
+            Message::ToplevelUpdate(events) => {
+                for event in events {
+                    match event {
+                        ToplevelEventMsg::Update { app_id, title, proto_id } => {
+                            update_window_cache(app_id, title, proto_id);
+                        }
+                        ToplevelEventMsg::Remove(proto_id) => {
+                            if let Ok(mut cache) = WINDOW_CACHE.lock() {
+                                cache.retain(|e| e.proto_id != proto_id);
+                            }
+                        }
+                    }
+                }
             }
             Message::Launch(kind) => {
                 let (cmd, args) = kind.spawn_args();
@@ -153,6 +253,11 @@ impl cosmic::Application for Sessions {
             }
             Message::Kill(pid) => {
                 let _ = signal::kill(Pid::from_raw(pid as i32), Signal::SIGTERM);
+            }
+            Message::Focus(pid) => {
+                if let Some(pid) = pid {
+                    self.activate_window_for_pid(pid);
+                }
             }
             Message::TogglePopup => {
                 return if let Some(p) = self.popup.take() {
@@ -183,6 +288,125 @@ impl cosmic::Application for Sessions {
         }
         Task::none()
     }
+}
+
+// ── Toplevel matching & activation ───────────────────────────────────
+
+use std::sync::Mutex;
+
+/// Static channel sender so the subscription can hand it to the app.
+static TOPLEVEL_TX: Mutex<Option<sctk::reexports::calloop::channel::Sender<ToplevelAction>>> =
+    Mutex::new(None);
+
+/// Lightweight window info cache (since we can't keep ToplevelInfo handles
+/// across iced message boundaries easily).
+#[derive(Debug, Clone)]
+struct WindowEntry {
+    app_id: String,
+    title: String,
+    proto_id: u32,
+}
+
+/// We actually store WindowEntry in a separate vec since ToplevelInfo isn't
+/// easily cloneable across threads. Let's replace the toplevels field.
+/// For now, we keep a simple Vec<WindowEntry> as our cache.
+
+static WINDOW_CACHE: Mutex<Vec<WindowEntry>> = Mutex::new(Vec::new());
+
+/// Also store the foreign toplevel handles so we can send activate commands.
+static HANDLE_CACHE: Mutex<Vec<(u32, ExtForeignToplevelHandleV1)>> = Mutex::new(Vec::new());
+
+fn update_window_cache(app_id: String, title: String, proto_id: u32) {
+    if let Ok(mut cache) = WINDOW_CACHE.lock() {
+        if let Some(entry) = cache.iter_mut().find(|e| e.proto_id == proto_id) {
+            entry.app_id = app_id;
+            entry.title = title;
+        } else {
+            cache.push(WindowEntry { app_id, title, proto_id });
+        }
+    }
+}
+
+impl Sessions {
+    /// Find the Ghostty window for a given session PID and activate it.
+    fn activate_window_for_pid(&self, session_pid: u32) {
+        let Some(tx) = &self.toplevel_tx else {
+            return;
+        };
+
+        // Find the Ghostty parent PID for this session.
+        let _ghostty_pid = find_ghostty_ancestor(session_pid).unwrap_or(session_pid);
+
+        // Match against window titles. Ghostty window titles often contain the
+        // cwd or running command. We try multiple matching strategies:
+        let cwd = scanner::proc_cwd_str(session_pid);
+
+        let cache = WINDOW_CACHE.lock().unwrap_or_else(|e| e.into_inner());
+        let handle_cache = HANDLE_CACHE.lock().unwrap_or_else(|e| e.into_inner());
+
+        // Strategy 1: find a Ghostty window whose title contains the cwd.
+        let matched = cache.iter().find(|w| {
+            is_ghostty_app_id(&w.app_id)
+                && cwd
+                    .as_ref()
+                    .map_or(false, |c| w.title.contains(c.as_str()))
+        });
+
+        // Strategy 2: match any Ghostty window if there's only one.
+        let matched = matched.or_else(|| {
+            let ghostty_windows: Vec<_> = cache
+                .iter()
+                .filter(|w| is_ghostty_app_id(&w.app_id))
+                .collect();
+            if ghostty_windows.len() == 1 {
+                Some(ghostty_windows[0])
+            } else {
+                None
+            }
+        });
+
+        // Strategy 3: find by title containing "claude" or "codex".
+        let matched = matched.or_else(|| {
+            let bin = scanner::proc_bin_name_pub(session_pid);
+            bin.and_then(|name| {
+                cache.iter().find(|w| {
+                    is_ghostty_app_id(&w.app_id)
+                        && w.title.to_lowercase().contains(&name.to_lowercase())
+                })
+            })
+        });
+
+        if let Some(window) = matched {
+            if let Some((_, handle)) = handle_cache
+                .iter()
+                .find(|(id, _)| *id == window.proto_id)
+            {
+                let _ = tx.send(ToplevelAction::Activate(handle.clone()));
+            }
+        }
+    }
+}
+
+fn is_ghostty_app_id(app_id: &str) -> bool {
+    app_id.contains("ghostty") || app_id.contains("Ghostty")
+}
+
+/// Walk /proc ppid chain to find a ghostty ancestor.
+fn find_ghostty_ancestor(pid: u32) -> Option<u32> {
+    let mut current = pid;
+    for _ in 0..10 {
+        let ppid = scanner::proc_ppid_pub(current)?;
+        if ppid <= 1 {
+            return None;
+        }
+        if let Some(name) = scanner::proc_bin_name_pub(ppid) {
+            if name == "ghostty" {
+                return Some(ppid);
+            }
+        }
+        current = ppid;
+    }
+    None
 }
 
 // ── Session row widget ───────────────────────────────────────────────
@@ -233,9 +457,16 @@ fn session_row<'a>(session: &'a SessionInfo) -> Element<'a, Message> {
     col = col.push(widget::text::caption(detail));
     col = col.spacing(2);
 
-    let row_content: Element<'_, Message> = col.width(Length::Fill).into();
+    let pid = session.pid;
 
-    // Kill button (only if we have a PID).
+    // Make the whole row clickable to focus the window.
+    let focus_btn = widget::button::custom(col.width(Length::Fill))
+        .on_press(Message::Focus(pid))
+        .class(cosmic::theme::Button::Text);
+
+    let row_content: Element<'_, Message> = focus_btn.into();
+
+    // Kill button.
     let action: Element<'_, Message> = if let Some(pid) = session.pid {
         widget::button::icon(widget::icon::from_name("window-close-symbolic"))
             .on_press(Message::Kill(pid))
@@ -250,7 +481,6 @@ fn session_row<'a>(session: &'a SessionInfo) -> Element<'a, Message> {
 // ── Helpers ──────────────────────────────────────────────────────────
 
 fn shorten_model(model: &str) -> String {
-    // "claude-opus-4-6" -> "opus-4-6", "gpt-5.4" stays as is
     if let Some(rest) = model.strip_prefix("claude-") {
         rest.to_string()
     } else {
