@@ -1,9 +1,11 @@
 use cosmic::iced::window::Id;
-use cosmic::iced::{Limits, Subscription};
+use cosmic::iced::{Alignment, Length, Limits, Subscription};
 use cosmic::iced_winit::commands::popup::{destroy_popup, get_popup};
 use cosmic::prelude::*;
 use cosmic::widget;
-use std::collections::HashMap;
+use nix::sys::signal::{self, Signal};
+use nix::unistd::Pid;
+use std::collections::{HashMap, HashSet};
 use std::process::Command;
 
 const APP_ID: &str = "dev.femtomc.CosmicExtAppletSessions";
@@ -32,20 +34,13 @@ impl SessionKind {
         }
     }
 
-    fn process_match(self) -> &'static str {
-        match self {
-            Self::ClaudeCode => "claude",
-            Self::Codex => "codex",
-            Self::Ghostty => "ghostty",
-        }
-    }
-
     const ALL: [SessionKind; 3] = [Self::ClaudeCode, Self::Codex, Self::Ghostty];
 }
 
 #[derive(Debug, Clone)]
 pub struct SessionInfo {
     pub pid: u32,
+    pub cwd: Option<String>,
 }
 
 pub struct Sessions {
@@ -73,38 +68,105 @@ pub enum Message {
     Kill(SessionKind, u32),
 }
 
+/// Read the binary name from /proc/{pid}/cmdline (first arg, basename only).
+fn proc_bin_name(pid: u32) -> Option<String> {
+    let raw = std::fs::read(format!("/proc/{pid}/cmdline")).ok()?;
+    let first = raw.split(|&b| b == 0).next()?;
+    if first.is_empty() {
+        return None;
+    }
+    let s = String::from_utf8_lossy(first);
+    Some(s.rsplit('/').next().unwrap_or(&s).to_string())
+}
+
+/// Read the working directory of a process.
+fn proc_cwd(pid: u32) -> Option<String> {
+    let link = std::fs::read_link(format!("/proc/{pid}/cwd")).ok()?;
+    let s = link.to_string_lossy().into_owned();
+    // Shorten home directory to ~
+    if let Ok(home) = std::env::var("HOME") {
+        if let Some(rest) = s.strip_prefix(&home) {
+            return Some(format!("~{rest}"));
+        }
+    }
+    Some(s)
+}
+
+/// Read the parent PID from /proc/{pid}/stat.
+fn proc_ppid(pid: u32) -> Option<u32> {
+    let stat = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+    // Format: pid (comm) state ppid ...
+    // comm can contain spaces and parens, so find the last ')' first.
+    let after_comm = stat.rsplit_once(')')?.1;
+    let mut fields = after_comm.split_whitespace();
+    fields.next()?; // state
+    fields.next()?.parse().ok()
+}
+
+/// Scan /proc for sessions, using parent-child relationships to avoid double-counting.
+///
+/// Strategy:
+/// - First pass: find all claude/codex PIDs and collect their parent PIDs.
+/// - Second pass: ghostty processes whose PID is a parent of a claude/codex session
+///   are excluded from the Ghostty count (they're accounted for under Claude/Codex).
 fn scan_sessions() -> HashMap<SessionKind, Vec<SessionInfo>> {
     let mut map: HashMap<SessionKind, Vec<SessionInfo>> = HashMap::new();
     let Ok(entries) = std::fs::read_dir("/proc") else {
         return map;
     };
+
+    // Collect all (pid, bin_name) pairs in one pass.
+    let mut procs: Vec<(u32, String)> = Vec::new();
     for entry in entries.flatten() {
         let name = entry.file_name();
         let Some(pid) = name.to_str().and_then(|s| s.parse::<u32>().ok()) else {
             continue;
         };
-        let cmdline_path = format!("/proc/{pid}/cmdline");
-        let Ok(raw) = std::fs::read(&cmdline_path) else {
-            continue;
-        };
-        let cmdline: String = raw
-            .split(|&b| b == 0)
-            .filter(|s| !s.is_empty())
-            .map(|s| String::from_utf8_lossy(s).into_owned())
-            .collect::<Vec<_>>()
-            .join(" ");
-
-        for kind in SessionKind::ALL {
-            let needle = kind.process_match();
-            // Match on the binary name in the first argument
-            let first_arg = cmdline.split_whitespace().next().unwrap_or("");
-            let bin_name = first_arg.rsplit('/').next().unwrap_or(first_arg);
-            if bin_name == needle {
-                map.entry(kind).or_default().push(SessionInfo { pid });
-            }
+        if let Some(bin) = proc_bin_name(pid) {
+            procs.push((pid, bin));
         }
     }
+
+    // Find claude/codex sessions and record which ghostty PIDs are their parents.
+    let mut ghostty_parents: HashSet<u32> = HashSet::new();
+
+    for &(pid, ref bin) in &procs {
+        let kind = match bin.as_str() {
+            "claude" => SessionKind::ClaudeCode,
+            "codex" => SessionKind::Codex,
+            _ => continue,
+        };
+        // Walk up to find the ghostty parent so we can exclude it.
+        if let Some(ppid) = proc_ppid(pid) {
+            // The immediate parent might be a shell; check grandparent too.
+            ghostty_parents.insert(ppid);
+            if let Some(gppid) = proc_ppid(ppid) {
+                ghostty_parents.insert(gppid);
+            }
+        }
+        map.entry(kind).or_default().push(SessionInfo {
+            pid,
+            cwd: proc_cwd(pid),
+        });
+    }
+
+    // Now collect standalone ghostty sessions (those NOT parenting a claude/codex).
+    for &(pid, ref bin) in &procs {
+        if bin == "ghostty" && !ghostty_parents.contains(&pid) {
+            map.entry(SessionKind::Ghostty)
+                .or_default()
+                .push(SessionInfo {
+                    pid,
+                    cwd: proc_cwd(pid),
+                });
+        }
+    }
+
     map
+}
+
+fn total_sessions(sessions: &HashMap<SessionKind, Vec<SessionInfo>>) -> usize {
+    sessions.values().map(|v| v.len()).sum()
 }
 
 impl cosmic::Application for Sessions {
@@ -142,21 +204,24 @@ impl cosmic::Application for Sessions {
     }
 
     fn view(&self) -> Element<'_, Self::Message> {
-        let total: usize = self.active_sessions.values().map(|v| v.len()).sum();
+        let total = total_sessions(&self.active_sessions);
+        let icon = self
+            .core
+            .applet
+            .icon_button("utilities-terminal-symbolic")
+            .on_press(Message::TogglePopup);
         if total > 0 {
-            self.core
-                .applet
-                .icon_button_from_handle(
-                    widget::icon::from_name("utilities-terminal-symbolic").handle(),
-                )
-                .on_press(Message::TogglePopup)
+            widget::row![
+                    icon,
+                    widget::text::body(format!("{total}"))
+                        .width(Length::Shrink)
+                        .align_y(Alignment::Center),
+                ]
+                .align_y(Alignment::Center)
+                .spacing(2)
                 .into()
         } else {
-            self.core
-                .applet
-                .icon_button("utilities-terminal-symbolic")
-                .on_press(Message::TogglePopup)
-                .into()
+            icon.into()
         }
     }
 
@@ -168,25 +233,25 @@ impl cosmic::Application for Sessions {
             let count = sessions.map_or(0, |v| v.len());
 
             // Section header with launch button
-            content = content.add(
-                widget::settings::item(
-                    format!("{} ({})", kind.label(), count),
-                    widget::button::icon(widget::icon::from_name("list-add-symbolic"))
-                        .on_press(Message::Launch(kind)),
-                ),
-            );
+            content = content.add(widget::settings::item(
+                format!("{} ({})", kind.label(), count),
+                widget::button::icon(widget::icon::from_name("list-add-symbolic"))
+                    .on_press(Message::Launch(kind)),
+            ));
 
-            // List active sessions
+            // List active sessions with cwd
             if let Some(sessions) = sessions {
                 for session in sessions {
                     let pid = session.pid;
-                    content = content.add(
-                        widget::settings::item(
-                            format!("  PID {pid}"),
-                            widget::button::icon(widget::icon::from_name("window-close-symbolic"))
-                                .on_press(Message::Kill(kind, pid)),
-                        ),
-                    );
+                    let label = session
+                        .cwd
+                        .as_deref()
+                        .unwrap_or("(unknown)");
+                    content = content.add(widget::settings::item(
+                        format!("  {label}"),
+                        widget::button::icon(widget::icon::from_name("window-close-symbolic"))
+                            .on_press(Message::Kill(kind, pid)),
+                    ));
                 }
             }
         }
@@ -196,14 +261,17 @@ impl cosmic::Application for Sessions {
 
     fn subscription(&self) -> Subscription<Self::Message> {
         Subscription::run(|| {
-            cosmic::iced::stream::channel(4, move |mut channel: cosmic::iced::futures::channel::mpsc::Sender<Message>| async move {
-                use cosmic::iced::futures::SinkExt;
-                loop {
-                    let sessions = scan_sessions();
-                    _ = channel.send(Message::Refresh(sessions)).await;
-                    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
-                }
-            })
+            cosmic::iced::stream::channel(
+                4,
+                move |mut channel: cosmic::iced::futures::channel::mpsc::Sender<Message>| async move {
+                    use cosmic::iced::futures::SinkExt;
+                    loop {
+                        let sessions = scan_sessions();
+                        _ = channel.send(Message::Refresh(sessions)).await;
+                        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                    }
+                },
+            )
         })
     }
 
@@ -217,9 +285,7 @@ impl cosmic::Application for Sessions {
                 let _ = Command::new(cmd).args(args).spawn();
             }
             Message::Kill(_kind, pid) => {
-                unsafe {
-                    libc::kill(pid as i32, libc::SIGTERM);
-                }
+                let _ = signal::kill(Pid::from_raw(pid as i32), Signal::SIGTERM);
             }
             Message::TogglePopup => {
                 return if let Some(p) = self.popup.take() {
