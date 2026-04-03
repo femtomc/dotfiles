@@ -1,0 +1,47 @@
+{
+    // ==========================================================
+    // Mac-like keybinding overrides for COSMIC desktop
+    // ==========================================================
+    // Since keyd remaps Super+<letter> to Ctrl+<letter> for common
+    // Mac shortcuts (c,v,x,z,a,s,w,q,t,n,f,l,r,p,b,i,u), many
+    // default COSMIC Super+<letter> shortcuts are now unreachable.
+    //
+    // This file provides alternative Ctrl+Alt bindings for the
+    // COSMIC desktop functions that were previously on Super+letter.
+    //
+    // NOTE: Super+Arrow, Super+Number, Super+Tab, Super+Escape
+    // are NOT affected by keyd and continue to work as normal.
+    // ==========================================================
+
+    // --- App launchers (were Super+letter, now unreachable) ---
+    // Terminal: was Super+T
+    (modifiers: [Ctrl, Alt], key: "t"): System(Terminal),
+    // Web Browser: was Super+B
+    (modifiers: [Ctrl, Alt], key: "b"): System(WebBrowser),
+    // Home Folder: was Super+F
+    (modifiers: [Ctrl, Alt], key: "f"): System(HomeFolder),
+    // App Library: was Super+A
+    (modifiers: [Ctrl, Alt], key: "a"): System(AppLibrary),
+    // Workspace Overview: was Super+W
+    (modifiers: [Ctrl, Alt], key: "w"): System(WorkspaceOverview),
+
+    // --- Tiling / Window management (were Super+letter, now unreachable) ---
+    // Toggle Stacking: was Super+S
+    (modifiers: [Ctrl, Alt], key: "s"): ToggleStacking,
+    // Swap Window: was Super+X
+    (modifiers: [Ctrl, Alt], key: "x"): SwapWindow,
+    // Resizing Outwards: was Super+R
+    (modifiers: [Ctrl, Alt], key: "r"): Resizing(Outwards),
+    // Resizing Inwards: was Super+Shift+R
+    (modifiers: [Ctrl, Alt, Shift], key: "r"): Resizing(Inwards),
+
+    // --- Focus with vim keys (some were Super+letter, now unreachable) ---
+    // Focus Out: was Super+U
+    (modifiers: [Ctrl, Alt], key: "u"): Focus(Out),
+    // Focus In: was Super+I
+    (modifiers: [Ctrl, Alt], key: "i"): Focus(In),
+    // Focus Right: was Super+L (conflicts with browser address bar)
+    (modifiers: [Ctrl, Alt], key: "l"): Focus(Right),
+    // Move Right: was Super+Shift+L
+    (modifiers: [Ctrl, Alt, Shift], key: "l"): Move(Right),
+}

@@ -1,0 +1,13 @@
+[Desktop Entry]
+Name=Terminal Sessions
+Comment=Manage Claude Code, Codex, and Ghostty terminal sessions
+Type=Application
+Exec=cosmic-ext-applet-sessions
+Terminal=false
+Categories=COSMIC;
+Keywords=COSMIC;Applet;Terminal;Sessions;Claude;Codex;Ghostty;
+Icon=dev.femtomc.CosmicExtAppletSessions-symbolic
+StartupNotify=true
+NoDisplay=true
+X-CosmicApplet=true
+X-CosmicHoverPopup=Auto

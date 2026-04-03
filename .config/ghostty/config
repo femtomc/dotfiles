@@ -1,0 +1,17 @@
+theme = gruvbox-material
+font-family = TX-02
+font-size = 16
+font-thicken = true
+adjust-cell-height = 1
+
+background-opacity = 0.90
+background-blur = 16
+unfocused-split-opacity = 0.7
+
+window-padding-x = 8
+window-padding-y = 8
+cursor-style = bar
+
+focus-follows-mouse = true
+clipboard-paste-protection = true
+notify-on-command-finish = unfocused
